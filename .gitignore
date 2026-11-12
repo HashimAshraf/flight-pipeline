@@ -1,0 +1,24 @@
+# Secrets
+.env
+*.pem
+*.key
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Editors / OS
+.vscode/settings.json
+.DS_Store
+Thumbs.db
+
+# Data and logs
+data/
+logs/
+*.csv
+*.log
+
+# Docker volumes
+pgdata/
