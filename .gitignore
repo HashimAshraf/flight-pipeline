@@ -1,4 +1,4 @@
-# Secrets
+# Secrets and local configuration
 .env
 *.pem
 *.key
@@ -6,19 +6,17 @@
 # Python
 .venv/
 __pycache__/
-*.pyc
-.ipynb_checkpoints/
+*.py[cod]
+.pytest_cache/
 
-# Editors / OS
-.vscode/settings.json
-.DS_Store
-Thumbs.db
-
-# Data and logs
-data/
+# Runtime data
 logs/
-*.csv
+pgdata/
+data/
 *.log
 
-# Docker volumes
-pgdata/
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

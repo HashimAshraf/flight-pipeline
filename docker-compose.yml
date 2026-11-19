@@ -1,0 +1,87 @@
+x-airflow-common: &airflow-common
+  build: .
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__FERNET_KEY: ""
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_USER:-airflow}:${AIRFLOW_PASSWORD:-airflow_dev_only}@postgres:5432/airflow
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+    AIRFLOW_CONN_FLIGHTS_POSTGRES: postgresql://${POSTGRES_USER:-pipeline_user}:${POSTGRES_PASSWORD:-pipeline_dev_only}@postgres:5432/flights_dw
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: "5432"
+    POSTGRES_DB: flights_dw
+    POSTGRES_USER: ${POSTGRES_USER:-pipeline_user}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pipeline_dev_only}
+    OPENSKY_CLIENT_ID: ${OPENSKY_CLIENT_ID:-}
+    OPENSKY_CLIENT_SECRET: ${OPENSKY_CLIENT_SECRET:-}
+    BBOX_LAMIN: ${BBOX_LAMIN:-24.0}
+    BBOX_LAMAX: ${BBOX_LAMAX:-28.0}
+    BBOX_LOMIN: ${BBOX_LOMIN:-66.0}
+    BBOX_LOMAX: ${BBOX_LOMAX:-70.0}
+    PYTHONPATH: /opt/airflow
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./src:/opt/airflow/src
+    - ./sql:/opt/airflow/sql
+    - ./logs:/opt/airflow/logs
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-postgres_dev_only}
+      POSTGRES_DB: postgres
+      APP_DB_USER: ${POSTGRES_USER:-pipeline_user}
+      APP_DB_PASSWORD: ${POSTGRES_PASSWORD:-pipeline_dev_only}
+      AIRFLOW_DB_USER: ${AIRFLOW_USER:-airflow}
+      AIRFLOW_DB_PASSWORD: ${AIRFLOW_PASSWORD:-airflow_dev_only}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-databases.sh:/docker-entrypoint-initdb.d/01-init-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate &&
+        (airflow users create --username "$${AIRFLOW_ADMIN_USER}" --password "$${AIRFLOW_ADMIN_PASSWORD}" --firstname Internship --lastname Admin --role Admin --email admin@example.com || true)
+    environment:
+      <<: *airflow-env
+      AIRFLOW_ADMIN_USER: ${AIRFLOW_ADMIN_USER:-admin}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-admin}
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
